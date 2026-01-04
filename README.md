@@ -1,4 +1,4 @@
-# 🛰️ NS-3 OLSR Blackhole Attack Implementation
+# 🛰️ NS-3 OLSR Blackhole & Link Spoofing Attack Implementation
 
 ![NS-3 Version](https://img.shields.io/badge/ns--3-3.40%2B-blue.svg)
 ![Protocol](https://img.shields.io/badge/Protocol-OLSR-green.svg)
@@ -8,109 +8,86 @@
 
 ## 📌 Project Overview
 
-This repository contains a modified implementation of the **OLSR (Optimized Link State Routing)** protocol for the **NS-3 Network Simulator**.
+This repository contains a specialized implementation of the **Optimized Link State Routing (OLSR)** protocol for the **NS-3 Network Simulator**. It is designed for **Network Layer Security** research within **Mobile Ad-hoc Networks (MANETs)**.
 
-The project focuses on **Network Layer Security** within **Mobile Ad-hoc Networks (MANETs)**. It implements a stealthy **Blackhole Attack** directly within the protocol's source code, allowing a specific node to manipulate network topology and silently discard traffic.
-
-This implementation serves as a research tool for analyzing protocol vulnerabilities, evaluating the impact of insider threats, and testing Intrusion Detection Systems (IDS).
+Modified by **Oded Ofek (2025)**, this version introduces a sophisticated **Blackhole Attack** and **Link Spoofing** capabilities directly into the core protocol logic. By manipulating both the **Control Plane** and the **Data Plane**, a malicious node can effectively position itself as a central routing hub and silently discard network traffic.
 
 ---
 
-## 🏴‍☠️ Attack Mechanism (Theoretical Background)
+## 🏴‍☠️ Attack Mechanisms
 
-A Blackhole Attack is a Denial-of-Service (DoS) attack where a malicious node uses the routing protocol to advertise itself as having the shortest path to the destination. Once the traffic is routed through it, the packets are dropped.
+The implementation utilizes four distinct techniques to compromise the network topology and disrupt data delivery:
 
-This implementation modifies both the **Control Plane** (to attract traffic) and the **Data Plane** (to destroy traffic).
+### 1. Willingness Manipulation (Control Plane)
+In standard OLSR, nodes select **Multi-Point Relays (MPRs)** based on their advertised willingness to forward traffic.
+* **Modification**: When the `IsMalicious` attribute is enabled, the node overrides its default willingness.
+* **Implementation**: The node sets its `Willingness` field to `WILL_ALWAYS` (value 7) in all outgoing `HELLO` messages.
+* **Impact**: According to RFC 3626, neighbors are forced to prioritize this node as an MPR, ensuring the attacker is included in nearly all routing paths.
 
-### 1. Willingness Manipulation
+### 2. Topology Poisoning via ANSN (Control Plane)
+The **Advertised Neighbor Sequence Number (ANSN)** is used by nodes to verify the freshness of topology information.
+* **Modification**: The attacker artificially manipulates the sequence number arithmetic.
+* **Implementation**: In the `SendTc` function, the attacker increments the ANSN by a large offset (`+200`) before broadcasting updates.
+* **Impact**: Neighboring nodes perceive the attacker's topology information as significantly newer than legitimate updates, causing valid routing table entries to be overwritten by the malicious path.
 
-In OLSR, nodes select **MPRs (Multi-Point Relays)** to forward broadcast messages.
+### 3. Link Spoofing (Control Plane)
+* **Modification**: The node advertises symmetric links with non-existent (phantom) neighbors.
+* **Implementation**: The node generates `HELLO` messages containing fake IP addresses (starting from `200.0.0.1` / `0xC8000001`) with a `SYM_LINK` / `SYM_NEIGH` status.
+* **Impact**: This artificially inflates the node's degree of connectivity. Pathfinding algorithms like Dijkstra will perceive the attacker as the most efficient "short-cut" for traffic, attracting flows from across the network.
 
-- **Modification:**  
-  The malicious node sets its `Willingness` field to `WILL_ALWAYS` (value 7).
-
-- **Impact:**  
-  According to RFC 3626, neighbors are forced to select this node as their MPR, ensuring it becomes a central hub for routing traffic.
-
----
-
-### 2. Topology Poisoning (ANSN)
-
-Topology Control (TC) messages carry the **Advertised Neighbor Sequence Number (ANSN)**.
-
-- **Modification:**  
-  The attacker artificially increments the ANSN by `+200` (modulo sequence limit) before sending updates.
-
-- **Impact:**  
-  The network interprets the attacker's information as newer or fresher than legitimate updates, causing valid routes to be overwritten by the malicious path.
-
----
-
-### 3. Link Spoofing
-
-- **Modification:**  
-  The node generates fake `HELLO` messages claiming to have symmetric links with non-existent (phantom) neighbors.
-
-- **Impact:**  
-  This artificially increases the node's degree (connectivity), making it appear as a highly connected hub, further incentivizing shortest-path algorithms (like Dijkstra) to route traffic through it.
-
----
-
-### 4. Silent Packet Drop (Blackhole)
-
-- **Modification:**  
-  In the packet forwarding logic (`RouteInput`), data packets destined for other nodes are intercepted.
-
-- **Impact:**  
-  The protocol signals successful processing (`return true`) but never invokes the forwarding callback. The packets are deleted from memory without generating ICMP error messages, making the packet loss difficult to trace.
+### 4. Silent Packet Drop / Blackhole (Data Plane)
+* **Modification**: Interception and destruction of transit traffic.
+* **Implementation**: Within the `RouteInput` function, if the node is malicious, it intercepts unicast packets destined for other nodes.
+* **Impact**: The protocol returns `true` (signaling successful processing) but intentionally fails to invoke the `UnicastForwardCallback`. Packets are dropped from memory without generating ICMP error messages, making the attack difficult to detect through standard diagnostic tools.
 
 ---
 
 ## 📂 Repository Structure
 
-The file structure mirrors the standard NS-3 source tree for easy integration.
+The source files are organized to mirror the standard NS-3 module tree for seamless integration:
 
-```tree
-├── src/
-│   └── olsr/
-│       └── model/
-│           ├── olsr-routing-protocol.cc  # Core logic (Attack implementation)
-│           └── olsr-routing-protocol.h   # Header file (Attributes & Definitions)
-└── README.md
-File Descriptions
-olsr-routing-protocol.h
-Defines the new IsMalicious and SpoofedLinksCount attributes.
+| File | Description |
+| :--- | :--- |
+| `olsr-routing-protocol.h` | Defines the `m_isMalicious` flag and `m_spoofedLinksCount` attribute. |
+| `olsr-routing-protocol.cc` | Implements the attack logic in `SendHello`, `SendTc`, and `RouteInput`. |
+| `README.md` | Comprehensive documentation of the implementation. |
 
-olsr-routing-protocol.cc
-Implements the logic for SendHello (Spoofing & Willingness), SendTc (ANSN poisoning), and RouteInput (Packet Drop).
+---
 
-🛠️ Installation & Integration
-This project is not a standalone application; it is a patch for the NS-3 Simulator source code.
+## 🛠️ Installation & Integration
 
-Prerequisites
-A working installation of NS-3
-(Recommended: ns-3-dev or ns-3.35+)
+### Prerequisites
+* A working installation of **NS-3** (v3.35 or higher recommended).
+* Basic knowledge of compiling NS-3 using the `./ns3` build system.
 
-Git
+### Step-by-Step Setup
+1.  **Backup** your original OLSR files located in `src/olsr/model/`.
+2.  **Copy** the modified `olsr-routing-protocol.h` and `olsr-routing-protocol.cc` from this repository into `src/olsr/model/`.
+3.  **Rebuild** the simulator:
+    ```bash
+    ./ns3 build
+    ```
 
-Step 1: Clone the Repository
-bash
-Copy code
-git clone https://github.com/YourUsername/ns3-olsr-blackhole-attack.git
-Step 2: Backup Original Files
-bash
-Copy code
-cd ~/workspace/ns-3-dev/src/olsr/model/
-mv olsr-routing-protocol.cc olsr-routing-protocol.cc.bak
-mv olsr-routing-protocol.h  olsr-routing-protocol.h.bak
-Step 3: Apply the Patch
-bash
-Copy code
-cp /path/to/ns3-olsr-blackhole-attack/src/olsr/model/* \
-   ~/workspace/ns-3-dev/src/olsr/model/
-Step 4: Recompile NS-3
-bash
-Copy code
-cd ~/workspace/ns-3-dev/
-./ns3 build
-Once the build finishes successfully, your NS-3 environment is ready to simulate Blackhole attacks using the standard OLSR helper.
+---
+
+## 🚀 Simulation Usage
+
+You can dynamically enable or disable the attack behavior in your NS-3 simulation scripts using the attribute system:
+
+```cpp
+Ptr<Node> node = nodes.Get(5);
+Ptr<olsr::RoutingProtocol> protocol = node->GetObject<olsr::RoutingProtocol>();
+
+protocol->SetAttribute("IsMalicious", BooleanValue(true));
+protocol->SetAttribute("SpoofedLinksCount", UintegerValue(15));
+
+### Configurable Attributes
+* **IsMalicious**: Boolean flag to toggle the Blackhole, ANSN poisoning, and Willingness manipulation.
+* **SpoofedLinksCount**: The number of fake symmetric neighbors to advertise in HELLO messages.
+
+### ⚠️ Research Disclaimer
+This implementation is intended strictly for academic and research purposes, such as evaluating protocol vulnerabilities or testing Intrusion Detection Systems (IDS). Unauthorized use of these techniques in real-world environments is prohibited.
+
+---
+
+**Would you like me to create a C++ simulation script (scenario) that demonstrates this attack and calculates the resulting packet delivery ratio (PDR)?**
