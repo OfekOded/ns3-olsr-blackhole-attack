@@ -80,14 +80,17 @@ Ptr<olsr::RoutingProtocol> protocol = node->GetObject<olsr::RoutingProtocol>();
 
 protocol->SetAttribute("IsMalicious", BooleanValue(true));
 protocol->SetAttribute("SpoofedLinksCount", UintegerValue(15));
+```
 
-### Configurable Attributes
-* **IsMalicious**: Boolean flag to toggle the Blackhole, ANSN poisoning, and Willingness manipulation.
-* **SpoofedLinksCount**: The number of fake symmetric neighbors to advertise in HELLO messages.
+🔧 Configurable Attributes
 
-### ⚠️ Research Disclaimer
-This implementation is intended strictly for academic and research purposes, such as evaluating protocol vulnerabilities or testing Intrusion Detection Systems (IDS). Unauthorized use of these techniques in real-world environments is prohibited.
+IsMalicious
+Boolean flag to toggle Blackhole behavior, ANSN poisoning, and Willingness manipulation.
 
----
+SpoofedLinksCount
+Number of fake symmetric neighbors advertised in HELLO messages.
 
-**Would you like me to create a C++ simulation script (scenario) that demonstrates this attack and calculates the resulting packet delivery ratio (PDR)?**
+⚠️ Research Disclaimer
+
+This implementation is intended strictly for academic and research purposes, such as evaluating protocol vulnerabilities or testing Intrusion Detection Systems (IDS).
+Unauthorized use of these techniques in real-world environments is prohibited.
