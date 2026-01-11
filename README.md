@@ -93,4 +93,4 @@ Number of fake symmetric neighbors advertised in HELLO messages.
 ⚠️ Research Disclaimer
 
 This implementation is intended strictly for academic and research purposes, such as evaluating protocol vulnerabilities or testing Intrusion Detection Systems (IDS).
-Unauthorized use of these techniques in real-world environments is prohibited.
+Unauthorized use of these techniques in real-world environments is prohibited...
